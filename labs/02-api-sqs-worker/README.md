@@ -16,5 +16,15 @@ Lab 02 starts after the verified Lab 01 milestone. It introduces an asynchronous
 3. Add an end-to-end test for `202` acknowledgement and eventual DynamoDB persistence.
 4. Add failure and queue-inspection scenarios before extending it with a DLQ (Lab 03).
 
-This lab is intentionally a design scaffold; it has not been deployed or claimed as Floci-compatible yet.
+Run it locally with:
 
+```bash
+make deploy LAB=02-api-sqs-worker
+make test LAB=02-api-sqs-worker
+```
+
+## Observed behavior
+
+Validated with Floci 2.0.1 and `hashicorp/aws` 6.64.0: API Gateway accepted a job with `202`, SQS invoked the worker Lambda, and the worker persisted the completed job in DynamoDB. The integration suite also verifies `400` input validation and a `404` unknown route.
+
+See [architecture notes](architecture.md) for the two Floci-specific compatibility details.

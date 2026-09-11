@@ -3,7 +3,7 @@ LAB ?= 01-api-lambda-dynamodb
 LAB_DIR := labs/$(LAB)
 TOFU_DIR := $(LAB_DIR)/infra/tofu
 
-.PHONY: help doctor start stop status build init validate plan deploy outputs test destroy logs clean
+.PHONY: help doctor start stop status build init validate reconcile plan deploy outputs test destroy logs clean
 
 help:
 	@printf '%s\n' 'Targets: doctor start stop status build init validate plan deploy outputs test destroy logs clean'
@@ -13,6 +13,7 @@ doctor:
 	@docker info >/dev/null || { echo 'Docker daemon is not available.'; exit 1; }
 	@command -v tofu >/dev/null || { echo 'OpenTofu is required (brew install opentofu).'; exit 1; }
 	@command -v curl >/dev/null || { echo 'curl is required.'; exit 1; }
+	@command -v jq >/dev/null || { echo 'jq is required.'; exit 1; }
 	@command -v zip >/dev/null || { echo 'zip is required.'; exit 1; }
 	@echo 'Environment check passed.'
 
@@ -28,9 +29,13 @@ status:
 	docker compose ps
 
 build:
-	@mkdir -p $(LAB_DIR)/dist
-	@rm -f $(LAB_DIR)/dist/function.zip
-	@cd $(LAB_DIR)/src && zip -X -q -j ../dist/function.zip index.mjs
+	@if [ -f "$(LAB_DIR)/scripts/build.sh" ]; then \
+		bash "$(LAB_DIR)/scripts/build.sh"; \
+	else \
+		mkdir -p $(LAB_DIR)/dist; \
+		rm -f $(LAB_DIR)/dist/function.zip; \
+		cd $(LAB_DIR)/src && zip -X -q -j ../dist/function.zip index.mjs; \
+	fi
 
 init: build
 	cd $(TOFU_DIR) && tofu init
@@ -38,10 +43,13 @@ init: build
 validate: init
 	cd $(TOFU_DIR) && tofu validate
 
-plan: init
+reconcile: init
+	@bash shared/scripts/reconcile-floci-apigw-timeout.sh $(TOFU_DIR)
+
+plan: init reconcile
 	cd $(TOFU_DIR) && tofu plan -refresh=false -out=tfplan
 
-deploy: start init
+deploy: start init reconcile
 	cd $(TOFU_DIR) && tofu apply -refresh=false -auto-approve
 
 outputs:
