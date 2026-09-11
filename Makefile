@@ -29,7 +29,8 @@ status:
 
 build:
 	@mkdir -p $(LAB_DIR)/dist
-	@cd $(LAB_DIR)/src && zip -q -j ../dist/function.zip index.mjs
+	@rm -f $(LAB_DIR)/dist/function.zip
+	@cd $(LAB_DIR)/src && zip -X -q -j ../dist/function.zip index.mjs
 
 init: build
 	cd $(TOFU_DIR) && tofu init
