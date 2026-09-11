@@ -1,0 +1,7 @@
+.DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+labs/*/dist/
+labs/*/infra/tofu/tfplan
+floci-data/
