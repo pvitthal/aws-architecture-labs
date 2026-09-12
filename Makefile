@@ -1,4 +1,5 @@
 SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
 LAB ?= 01-api-lambda-dynamodb
 LAB_DIR := labs/$(LAB)
 TOFU_DIR := $(LAB_DIR)/infra/tofu
@@ -15,11 +16,15 @@ doctor:
 	@command -v curl >/dev/null || { echo 'curl is required.'; exit 1; }
 	@command -v jq >/dev/null || { echo 'jq is required.'; exit 1; }
 	@command -v zip >/dev/null || { echo 'zip is required.'; exit 1; }
+	@command -v node >/dev/null || { echo 'Node.js is required.'; exit 1; }
 	@echo 'Environment check passed.'
 
 start:
 	docker compose up -d
-	@until curl --silent --fail http://localhost:4566/_floci/health >/dev/null; do sleep 1; done
+	@ready=false; for attempt in $$(seq 1 60); do \
+		if curl --silent --fail --max-time 2 http://localhost:4566/_floci/health >/dev/null; then ready=true; break; fi; \
+		sleep 1; \
+	done; $$ready || { echo 'Floci did not become healthy; inspect make logs.'; exit 1; }
 	@echo 'Floci is ready at http://localhost:4566.'
 
 stop:
@@ -44,6 +49,9 @@ validate: init
 	cd $(TOFU_DIR) && tofu validate
 
 reconcile: init
+	@if [ -s "$(TOFU_DIR)/terraform.tfstate" ]; then \
+		tofu -chdir="$(TOFU_DIR)" apply -refresh-only -auto-approve -input=false; \
+	fi
 	@bash shared/scripts/reconcile-floci-apigw-timeout.sh $(TOFU_DIR)
 
 plan: init reconcile
@@ -56,7 +64,15 @@ outputs:
 	cd $(TOFU_DIR) && tofu output
 
 test:
-	cd $(LAB_DIR) && API_URL="$$(cd infra/tofu && tofu output -raw api_url)" TABLE_NAME="$$(cd infra/tofu && tofu output -raw table_name)" node tests/integration/api.test.mjs
+	@if [ -f "$(LAB_DIR)/scripts/test.sh" ]; then \
+		bash "$(LAB_DIR)/scripts/test.sh"; \
+	else \
+		cd "$(LAB_DIR)"; \
+		API_URL="$$(cd infra/tofu && tofu output -raw api_url)"; \
+		TABLE_NAME="$$(cd infra/tofu && tofu output -raw table_name)"; \
+		export API_URL TABLE_NAME; \
+		node tests/integration/api.test.mjs; \
+	fi
 
 destroy:
 	cd $(TOFU_DIR) && tofu destroy -auto-approve
@@ -65,4 +81,4 @@ logs:
 	docker compose logs --tail=200 floci
 
 clean:
-	rm -rf $(LAB_DIR)/dist $(TOFU_DIR)/.terraform $(TOFU_DIR)/.terraform.lock.hcl $(TOFU_DIR)/tfplan
+	rm -rf $(LAB_DIR)/dist $(TOFU_DIR)/.terraform $(TOFU_DIR)/tfplan
