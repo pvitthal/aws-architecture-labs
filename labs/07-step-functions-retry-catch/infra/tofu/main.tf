@@ -54,7 +54,7 @@ resource "aws_sfn_state_machine" "workflow" {
         Type           = "Task", Resource = "arn:aws:states:::lambda:invoke"
         Parameters     = { FunctionName = aws_lambda_function.processor.arn, "Payload.$" = "$" }
         ResultSelector = { "id.$" = "$.Payload.id", "payload.$" = "$.Payload.payload", "status.$" = "$.Payload.status" }
-        Retry          = [{ ErrorEquals = ["States.TaskFailed"], IntervalSeconds = 1, MaxAttempts = 2, BackoffRate = 1.0 }]
+        Retry          = [{ ErrorEquals = ["States.TaskFailed"], IntervalSeconds = 1, MaxAttempts = 1, BackoffRate = 1.0 }]
         Catch          = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.error", Next = "Compensate" }]
         End            = true
       }

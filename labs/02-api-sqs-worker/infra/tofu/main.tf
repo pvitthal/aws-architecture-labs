@@ -85,7 +85,21 @@ resource "aws_lambda_function" "worker" {
   }
 }
 
+resource "aws_iam_role_policy" "worker_sqs" {
+  name = "${local.name}-worker-queue-consume"
+  role = aws_iam_role.worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+      Resource = aws_sqs_queue.jobs.arn
+    }]
+  })
+}
+
 resource "aws_lambda_event_source_mapping" "jobs" {
+  depends_on       = [aws_iam_role_policy.worker_sqs, aws_iam_role_policy.worker_dynamodb]
   event_source_arn = aws_sqs_queue.jobs.arn
   function_name    = aws_lambda_function.worker.arn
   batch_size       = 1

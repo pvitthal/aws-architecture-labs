@@ -93,7 +93,21 @@ resource "aws_lambda_function" "audit" {
   timeout          = 10
   environment { variables = { AUDIT_TABLE_NAME = aws_dynamodb_table.audit.name } }
 }
+resource "aws_iam_role_policy" "worker_sqs" {
+  name = "${local.name}-worker-queue-consume"
+  role = aws_iam_role.worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+      Resource = aws_sqs_queue.orders.arn
+    }]
+  })
+}
+
 resource "aws_lambda_event_source_mapping" "orders" {
+  depends_on       = [aws_iam_role_policy.worker_sqs, aws_iam_role_policy.worker_order_and_event]
   event_source_arn = aws_sqs_queue.orders.arn
   function_name    = aws_lambda_function.worker.arn
   batch_size       = 1

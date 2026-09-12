@@ -5,7 +5,7 @@ locals {
 resource "aws_sqs_queue" "dlq" { name = "${local.name}-dlq" }
 resource "aws_sqs_queue" "jobs" {
   name                       = "${local.name}-queue"
-  visibility_timeout_seconds = 5
+  visibility_timeout_seconds = 60
   redrive_policy             = jsonencode({ deadLetterTargetArn = aws_sqs_queue.dlq.arn, maxReceiveCount = 2 })
 }
 resource "aws_dynamodb_table" "jobs" {
@@ -55,7 +55,21 @@ resource "aws_lambda_function" "worker" {
   timeout          = 10
   environment { variables = { TABLE_NAME = aws_dynamodb_table.jobs.name } }
 }
+resource "aws_iam_role_policy" "worker_sqs" {
+  name = "${local.name}-worker-queue-consume"
+  role = aws_iam_role.worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+      Resource = aws_sqs_queue.jobs.arn
+    }]
+  })
+}
+
 resource "aws_lambda_event_source_mapping" "jobs" {
+  depends_on       = [aws_iam_role_policy.worker_sqs, aws_iam_role_policy.worker_table]
   event_source_arn = aws_sqs_queue.jobs.arn
   function_name    = aws_lambda_function.worker.arn
   batch_size       = 1

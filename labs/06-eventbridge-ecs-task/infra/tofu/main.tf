@@ -28,6 +28,23 @@ resource "aws_subnet" "task" {
   availability_zone = "us-east-1a"
 }
 
+resource "aws_internet_gateway" "task" {
+  vpc_id = aws_vpc.task.id
+}
+
+resource "aws_route_table" "task" {
+  vpc_id = aws_vpc.task.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.task.id
+  }
+}
+
+resource "aws_route_table_association" "task" {
+  subnet_id      = aws_subnet.task.id
+  route_table_id = aws_route_table.task.id
+}
+
 resource "aws_security_group" "task" {
   name        = "${local.name}-sg"
   description = "No ingress; permits task egress."
@@ -100,9 +117,10 @@ resource "aws_cloudwatch_event_rule" "run_task" {
 }
 
 resource "aws_cloudwatch_event_target" "ecs" {
-  rule     = aws_cloudwatch_event_rule.run_task.name
-  arn      = aws_ecs_cluster.tasks.arn
-  role_arn = aws_iam_role.eventbridge.arn
+  depends_on = [aws_iam_role_policy.eventbridge_ecs, aws_route_table_association.task]
+  rule       = aws_cloudwatch_event_rule.run_task.name
+  arn        = aws_ecs_cluster.tasks.arn
+  role_arn   = aws_iam_role.eventbridge.arn
 
   ecs_target {
     task_definition_arn = aws_ecs_task_definition.worker.arn
@@ -111,7 +129,7 @@ resource "aws_cloudwatch_event_target" "ecs" {
     network_configuration {
       subnets          = [aws_subnet.task.id]
       security_groups  = [aws_security_group.task.id]
-      assign_public_ip = false
+      assign_public_ip = true
     }
   }
 }

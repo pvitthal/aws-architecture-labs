@@ -8,6 +8,7 @@ provider "aws" {
   endpoints {
     apigateway = "http://localhost:4566"
     dynamodb   = "http://localhost:4566"
+    ec2        = "http://localhost:4566"
     ecs        = "http://localhost:4566"
     iam        = "http://localhost:4566"
     lambda     = "http://localhost:4566"

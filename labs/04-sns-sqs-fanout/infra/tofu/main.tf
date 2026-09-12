@@ -102,12 +102,40 @@ resource "aws_lambda_function" "audit" {
   timeout          = 10
   environment { variables = { TABLE_NAME = aws_dynamodb_table.audit.name } }
 }
+resource "aws_iam_role_policy" "email_sqs" {
+  name = "${local.name}-email-queue-consume"
+  role = aws_iam_role.email.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+      Resource = aws_sqs_queue.email.arn
+    }]
+  })
+}
+
 resource "aws_lambda_event_source_mapping" "email" {
+  depends_on       = [aws_iam_role_policy.email_sqs, aws_iam_role_policy.email_table]
   event_source_arn = aws_sqs_queue.email.arn
   function_name    = aws_lambda_function.email.arn
   batch_size       = 1
 }
+resource "aws_iam_role_policy" "audit_sqs" {
+  name = "${local.name}-audit-queue-consume"
+  role = aws_iam_role.audit.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+      Resource = aws_sqs_queue.audit.arn
+    }]
+  })
+}
+
 resource "aws_lambda_event_source_mapping" "audit" {
+  depends_on       = [aws_iam_role_policy.audit_sqs, aws_iam_role_policy.audit_table]
   event_source_arn = aws_sqs_queue.audit.arn
   function_name    = aws_lambda_function.audit.arn
   batch_size       = 1
