@@ -1,7 +1,16 @@
 # Lab 05 architecture and validation boundary
 
-```text
-S3 PutObject → EventBridge default bus → object-created rule → Lambda → DynamoDB
+```mermaid
+flowchart LR
+  Uploader -->|PutObject| S3
+  subgraph Local["Local Floci boundary — verified S3-origin delivery"]
+    S3[Amazon S3 bucket] -->|Object Created notification| Bus[Amazon EventBridge default bus]
+    Bus --> Rule[Bucket-filtered rule]
+    Rule --> Handler[Processor Lambda]
+    Handler --> DB[(Amazon DynamoDB)]
+    Permission[Lambda invoke permission] -.-> Handler
+    Rule -.->|Delivery errors: service retry policy| Handler
+  end
 ```
 
 ## Intended AWS behavior
@@ -10,12 +19,12 @@ S3 PutObject → EventBridge default bus → object-created rule → Lambda → 
 
 ## What the local integration test proves
 
-The test uses `PutEvents` to send a synthetic `aws.s3` / `Object Created` event that matches the rule. It then polls DynamoDB for the bucket and generated object key. That is deliberately a reliable EventBridge target-delivery test, not a claim that Floci emitted the original S3 notification.
+The integration test uploads a real S3 object and polls DynamoDB for its bucket and generated key, then deletes the uploaded object. This passed against Floci 2.0.1 with AWS provider 6.64.0. No synthetic `PutEvents` injection is used.
 
-## What must be observed during coordinated validation
+## Observed local behavior
 
-- Whether Floci accepts the bucket EventBridge notification configuration.
-- Whether a real local `PutObject` causes an EventBridge event and invokes the Lambda.
-- The exact Floci and AWS provider versions used.
+- OpenTofu deployed all nine resources, including the bucket EventBridge notification configuration.
+- A signed local `PutObject` caused an EventBridge event and Lambda invocation, producing the matching DynamoDB record.
+- DynamoDB requests must use `application/x-amz-json-1.0`; the previous test used the EventBridge JSON 1.1 content type and received `UnknownOperationException`.
 
-Until those observations are recorded, S3-origin delivery is **unverified locally**. Production release still requires an AWS-sandbox test that uploads an object, waits for the DynamoDB row, and verifies least-privilege IAM (the local emulator does not provide sufficient IAM-enforcement coverage).
+Production release still requires an AWS-sandbox test that uploads an object, waits for the DynamoDB row, and verifies least-privilege IAM (the local emulator does not provide sufficient IAM-enforcement coverage).

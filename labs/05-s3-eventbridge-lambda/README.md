@@ -6,13 +6,11 @@ Lab 05 models an object-created processing pipeline. S3 is configured to publish
 
 ```bash
 make deploy LAB=05-s3-eventbridge-lambda
-TABLE_NAME="$(cd labs/05-s3-eventbridge-lambda/infra/tofu && tofu output -raw table_name)" \
-BUCKET_NAME="$(cd labs/05-s3-eventbridge-lambda/infra/tofu && tofu output -raw bucket_name)" \
-node labs/05-s3-eventbridge-lambda/tests/integration/eventbridge.test.mjs
+make test LAB=05-s3-eventbridge-lambda
 ```
 
 ## Test boundary
 
-The integration test sends a deterministic EventBridge event with the same `source`, `detail-type`, and detail shape targeted by the rule. This reliably verifies the rule → Lambda → DynamoDB portion without treating emulator S3 notification behavior as an AWS guarantee. The infrastructure still enables the production S3 → EventBridge handoff; validate that handoff with an S3 `PutObject` test in an AWS sandbox before release.
+The integration test uploads a real S3 object and waits for its DynamoDB record, covering the S3 notification boundary as well as EventBridge → Lambda → DynamoDB. Deployment and this test passed on Floci 2.0.1 with AWS provider 6.64.0. The test requires curl with AWS SigV4 support and removes its uploaded object afterward. An AWS sandbox run is still needed to establish production behavior.
 
 See [architecture notes](architecture.md) for observed behavior and the production validation checklist.

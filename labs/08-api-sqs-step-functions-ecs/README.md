@@ -14,4 +14,7 @@ make deploy LAB=08-api-sqs-step-functions-ecs
 make test LAB=08-api-sqs-step-functions-ecs
 ```
 
-The ECS integration requires a Floci capability check during coordinated deployment; see [architecture notes](architecture.md).
+Verified on Floci 2.0.1: the integration test follows the submitted execution ARN
+through workflow success and verifies its exact ECS task stopped with exit code
+zero. Input `400` and unknown-route `404` checks also pass. See
+[architecture notes](architecture.md) for the local validation boundary.

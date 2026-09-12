@@ -15,4 +15,6 @@ make deploy LAB=07-step-functions-retry-catch
 make test LAB=07-step-functions-retry-catch
 ```
 
+Deployment and integration tests passed on Floci 2.0.1 with AWS provider 6.64.0. The failure test checks execution history for exactly two processor invocations before compensation.
+
 See [architecture notes](architecture.md) for the state transitions and emulator validation scope.

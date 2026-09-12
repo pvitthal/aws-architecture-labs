@@ -1,14 +1,21 @@
 # Lab 10 architecture and validation boundary
 
-```text
-POST /orders
-    │
-    ▼
-API Gateway → request Lambda → SQS orders queue → worker Lambda → DynamoDB orders table
-                                                     │
-                                                     │ PutEvents: order.completed
-                                                     ▼
-                                   EventBridge default bus → completion rule → audit Lambda → DynamoDB audit table
+```mermaid
+flowchart LR
+  Client -->|POST /orders| API
+  subgraph Local["Local Floci boundary — AWS service APIs"]
+    API[Amazon API Gateway] --> Request[Request Lambda]
+    Request --> Queue[SQS orders queue]
+    Queue --> Worker[Worker Lambda]
+    Worker -->|Completed state| Orders[(DynamoDB orders table)]
+    Worker -->|PutEvents: order.completed| Bus[Amazon EventBridge]
+    Bus --> Rule[Completion rule]
+    Rule --> Audit[Audit Lambda]
+    Audit --> AuditDB[(DynamoDB audit table)]
+    Worker -.->|Processing / publish failure: retry| Queue
+    Role[IAM consumer and publisher permissions] -.-> Worker
+  end
+  Request -->|202 accepted or 400 invalid| Client
 ```
 
 ## Intended behavior
@@ -18,6 +25,9 @@ The request function validates a customer ID and positive order quantity before 
 ## What the integration test proves
 
 The test submits an order through API Gateway, then polls both DynamoDB tables until the worker's state record and the audit consumer's event record exist for that exact ID. This is an end-to-end local test of all five hops, with bounded polling rather than a fixed delay.
+
+Verified on Floci 2.0.1 with AWS provider 6.64.0: deployment and the end-to-end
+test pass, including the correlated order/audit records and 400/404 negatives.
 
 ## Delivery semantics and production follow-up
 

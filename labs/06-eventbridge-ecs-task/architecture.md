@@ -1,23 +1,36 @@
 # Lab 06 architecture and validation boundary
 
-```text
-Producer → EventBridge default bus → matching rule → ECS RunTask (Fargate) → short-lived container
-                                      │
-                                      └→ EventBridge IAM role → ECS task definition / execution role
+```mermaid
+flowchart LR
+  Producer --> Bus
+  Registry[Public container registry] -->|Image pull| Task
+  subgraph Local["Local Floci boundary — AWS networking is modeled"]
+    Bus[Amazon EventBridge default bus] --> Rule[Matching rule]
+    Rule -->|RunTask| Task[ECS Fargate task]
+    Role[EventBridge IAM role] -.->|RunTask and PassRole| Task
+    subgraph VPC["VPC / public subnet / internet gateway"]
+      Task --> Success[Exit 0]
+      Task --> Failure[Nonzero exit / stopped reason]
+    end
+  end
 ```
 
 ## Intended AWS behavior
 
-An event whose source is `lab.architecture` and detail type is `run-task` matches the EventBridge rule. EventBridge assumes the narrowly scoped role and calls `ecs:RunTask` for the Fargate-compatible task definition. The task runs in the lab VPC subnet without public IP assignment, writes its startup marker, and exits successfully.
+An event whose source is `lab.architecture` and detail type is `run-task` matches the EventBridge rule. EventBridge assumes the narrowly scoped role and calls `ecs:RunTask` for the Fargate-compatible task definition. The task runs in the lab VPC public subnet with public IP assignment and an internet gateway route for public image pulls, writes its startup marker, and exits successfully.
 
 ## Local test contract
 
-The integration test publishes a matching EventBridge event and polls ECS for a stopped task. It confirms an event was accepted, a task was created, and the expected task family reached `STOPPED`. It does not claim that Floci reproduces AWS networking, Fargate scheduling, image-pull behavior, CloudWatch logging, or IAM enforcement.
+The integration test publishes a matching EventBridge event and polls ECS for a stopped task. To pass, it must confirm an event was accepted, a new task was created, the expected task family reached `STOPPED`, and its container exited with code zero. It does not claim that Floci reproduces AWS networking, Fargate scheduling, image-pull behavior, CloudWatch logging, or IAM enforcement.
 
-## Coordinated-validation observations to record
+## Observed behavior — Floci 2.0.1, 2026-09-12
 
-- Whether Floci supports EventBridge ECS targets with `FARGATE` and `awsvpc` network configuration.
-- Whether the selected public image can be pulled by Floci's Docker runtime.
-- Whether the task's exit status and stopped reason are exposed through the ECS emulator.
+`make deploy LAB=06-eventbridge-ecs-task` created all 14 resources, including the VPC, subnet, internet gateway, default route, security group, roles, task definition, and EventBridge ECS target.
 
-If any of these are unsupported, retain the OpenTofu architecture and mark the local test as unsupported rather than replacing it with a direct `RunTask` test: direct invocation would no longer verify the EventBridge target boundary. Run the same test in an AWS sandbox before production use.
+`make test LAB=06-eventbridge-ecs-task` accepted the event with zero failed entries, then failed after 30 seconds because no stopped task appeared. The emulator logged:
+
+```text
+EventBridge: unsupported target ARN type: arn:aws:ecs:us-east-1:000000000000:cluster/lab06-scheduled-task-cluster
+```
+
+The missing boundary is EventBridge target dispatch; accepting the target configuration does not demonstrate invocation support. Image pulling and ECS exit-status reporting were not reached by this test. The native architecture and strict test are retained, so this unsupported integration remains visible as a failure. A direct `RunTask` call would not establish EventBridge delivery. AWS execution has not been tested.

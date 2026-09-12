@@ -8,16 +8,23 @@ Runnable AWS architecture patterns, exercised locally with OpenTofu and [Floci](
 | --- | --- | --- |
 | 01 | API Gateway → Lambda → DynamoDB | Verified locally |
 | 02 | API Gateway → Lambda → SQS → worker Lambda | Verified locally |
-| 03 | SQS retries and DLQ | Ready for coordinated validation |
-| 04 | SNS to SQS fan-out | Ready for coordinated validation |
-| 05 | S3 → EventBridge → Lambda | Ready for coordinated validation |
-| 06 | EventBridge → ECS task | Ready for coordinated validation |
-| 07 | Step Functions retry/catch → Lambda | Ready for coordinated validation |
-| 08 | API → SQS → Step Functions → ECS | Ready for coordinated validation |
+| 03 | SQS retries and DLQ | Verified locally |
+| 04 | SNS to SQS fan-out | Verified locally |
+| 05 | S3 → EventBridge → Lambda | Verified locally with real S3 upload |
+| 06 | EventBridge → ECS task | Deploys; ECS target dispatch unsupported in Floci 2.0.1 |
+| 07 | Step Functions retry/catch → Lambda | Verified locally, including retry count |
+| 08 | API → SQS → Step Functions → ECS | Verified locally through ECS exit zero |
 | 09 | Lambda → Redis cache-aside → DynamoDB | Verified locally |
-| 10 | Event-driven order processing | Ready for coordinated validation |
+| 10 | Event-driven order processing | Verified locally |
 
 Every lab includes an `architecture.md` with a rendered Markdown AWS-flow diagram, design notes, and compatibility observations.
+
+Validation on 2026-09-12 used Floci 2.0.1 and AWS provider 6.64.0. All ten
+OpenTofu configurations validate and deploy. Nine integration suites pass;
+Lab 06's strict test fails at the documented unsupported dispatch boundary.
+The six Redis unit regressions also pass. Labs 01 and 09 additionally produced
+no-change plans after refreshing state; Lab 01 retained its resources across a
+Floci restart. These results are local emulator observations, not AWS certification.
 
 ## Prerequisites
 
